@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>DTAA Report Generator · Karad Division</title>
+<style>
+  :root {
+    --red: #C0392B; --dark-red: #922B21; --cream: #FDF6EC; --sand: #FAE5D3;
+    --teal: #117A65; --teal-dark: #0E6655; --teal-light: #D1F2EB;
+    --blue: #1A5276; --blue-dark: #154360; --blue-light: #D6EAF8;
+    --purple: #6C3483; --purple-dk: #512E5F; --purple-lt: #E8DAEF;
+    --charcoal: #1C1C1C; --mid-gray: #CCCCCC; --dark-gray: #555555;
+    --doc-hdr: #1F618D; --parcel-hdr: #117A65; --all-hdr: #6C3483;
+    --bg: #F8F9FA; --card: #FFFFFF; --border: #E2E8F0;
+    --text: #1A202C; --muted: #718096; --success: #276749;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  header {
+    background: var(--dark-red);
+    padding: 18px 24px 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo { width: 38px; height: 38px; background: rgba(255,255,255,0.15); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; }
+  .logo svg { width: 22px; height: 22px; fill: #fff; }
+  header h1 { color: #fff; font-size: 17px; font-weight: 600; line-height: 1.2; }
+  header p { color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px; }
+
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); margin: 24px 0 10px;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: 20px 16px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; position: relative;
+    background: var(--card);
+  }
+  .drop-zone:hover, .drop-zone.drag { border-color: var(--red); background: #FFF5F5; }
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-zone .dz-icon { font-size: 28px; margin-bottom: 6px; }
+  .drop-zone .dz-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .drop-zone .dz-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  .file-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .file-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 12px; font-size: 13px;
+  }
+  .file-item .fi-icon { font-size: 16px; }
+  .file-item .fi-name { flex: 1; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-item .fi-status { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .fi-status.ok { background: #C6F6D5; color: #276749; }
+  .fi-status.wait { background: #EDF2F7; color: var(--muted); }
+  .fi-status.err { background: #FED7D7; color: #9B2C2C; }
+
+  .required-files { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; }
+  .req-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); padding: 4px 0; }
+  .req-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .req-dot.loaded { background: #48BB78; }
+
+  .generate-btn {
+    width: 100%; padding: 14px; margin-top: 24px;
+    background: var(--dark-red); color: #fff; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .generate-btn:hover:not(:disabled) { background: var(--red); }
+  .generate-btn:active:not(:disabled) { transform: scale(0.98); }
+  .generate-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .progress-wrap { margin-top: 20px; display: none; }
+  .progress-bar-outer { background: var(--border); border-radius: 99px; height: 6px; overflow: hidden; }
+  .progress-bar-inner { height: 100%; background: var(--red); border-radius: 99px; transition: width 0.3s; width: 0%; }
+  .progress-label { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .log-box {
+    margin-top: 16px; background: #1A202C; border-radius: 10px;
+    padding: 12px 14px; max-height: 200px; overflow-y: auto;
+    font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.6;
+    display: none;
+  }
+  .log-line { color: #A0AEC0; }
+  .log-line.ok { color: #68D391; }
+  .log-line.warn { color: #F6AD55; }
+  .log-line.err { color: #FC8181; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; text-align: center;
+  }
+  .stat-num { font-size: 22px; font-weight: 700; color: var(--red); }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .download-btn {
+    width: 100%; padding: 14px; margin-top: 16px;
+    background: var(--success); color: #fff; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s; display: none;
+    align-items: center; justify-content: center; gap: 8px;
+  }
+  .download-btn:hover { background: #22543D; }
+  .download-btn.show { display: flex; }
+
+  footer {
+    text-align: center; font-size: 11px; color: var(--muted);
+    margin-top: 40px; padding-bottom: 20px; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24"><path d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>
+  </div>
+  <div>
+    <h1>DTAA Report Generator</h1>
+    <p>Karad Division · Delivery Transit Analysis Automated</p>
+  </div>
+</header>
+
+<main>
+  <p class="section-label">Upload Source Files</p>
+
+  <div id="officeStatusBar" style="display:flex;align-items:center;gap:10px;background:#EBF8FF;border:1px solid #BEE3F8;border-radius:10px;padding:10px 14px;margin-bottom:14px;">
+    <span id="officeStatusIcon" style="font-size:16px;">⏳</span>
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:600;color:#2B6CB0;" id="officeStatusTitle">Loading Office Master from GitHub…</div>
+      <div style="font-size:11px;color:#4A90C4;margin-top:1px;" id="officeStatusSub">285 offices · Karad Division</div>
+    </div>
+  </div>
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".csv" multiple>
+    <div class="dz-icon">📂</div>
+    <div class="dz-title">Select or drop CSV files here</div>
+    <div class="dz-sub">Up to 5 product delivery CSVs · Unknown filenames can be assigned manually</div>
+  </div>
+
+  <div class="required-files" id="reqList" style="margin-top:14px;">
+    <div class="req-row" data-key="all_category"><span class="req-dot" id="dot-all_category"></span> All_Offices_all_category.csv</div>
+    <div class="req-row" data-key="registered_letter"><span class="req-dot" id="dot-registered_letter"></span> All_Offices_registered_letter.csv</div>
+    <div class="req-row" data-key="Speed_Letter"><span class="req-dot" id="dot-Speed_Letter"></span> All_Offices_Speed_Letter.csv</div>
+    <div class="req-row" data-key="Registered_Parcel"><span class="req-dot" id="dot-Registered_Parcel"></span> All_Offices_Registered_Parcel.csv</div>
+    <div class="req-row" data-key="Speed_Parcel"><span class="req-dot" id="dot-Speed_Parcel"></span> All_Offices_Speed_Parcel.csv</div>
+  </div>
+
+  <div class="file-list" id="fileList"></div>
+
+  <button class="generate-btn" id="genBtn" disabled>
+    ▶ Generate DTAA Report
+  </button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="progress-label" id="progressLabel">Starting…</div>
+  </div>
+
+  <div class="log-box" id="logBox"></div>
+
+  <div class="stats-grid" id="statsGrid" style="display:none;">
+    <div class="stat-card"><div class="stat-num" id="statOffices">—</div><div class="stat-lbl">Offices</div></div>
+    <div class="stat-card"><div class="stat-num" id="statAlert">—</div><div class="stat-lbl">Below 90%</div></div>
+    <div class="stat-card"><div class="stat-num" id="statRows">—</div><div class="stat-lbl">Data Rows</div></div>
+  </div>
+
+  <button class="download-btn" id="dlBtn">⬇ Download Excel Workbook</button>
+
+  <footer>
+    DTAA v1.0 · Karad Division, Pune Region<br>
+    Data processed locally on your device · Nothing uploaded
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── GitHub source-of-truth for Office Master ──────────────────────────────
+// UPDATE THIS URL after uploading Office_Names.xlsx to your repo:
+const OFFICE_MASTER_URL = 'https://raw.githubusercontent.com/dokaradmmu/DTAA-report/main/Office_Names.xlsx';
+
+// office lookup populated on page load from GitHub fetch
+let offLookup = new Map();
+let officeStatus = 'loading'; // 'loading' | 'ok' | 'error'
+
+// ── Auto-match patterns (CSV files only — Office Master fetched from GitHub)
+const AUTO_PATTERNS = {
+  'all_category':       { rx: /all.?category/i,         label: 'All Category CSV',      cat: 'All Products' },
+  'registered_letter':  { rx: /registered.?letter/i,    label: 'Registered Letter CSV', cat: 'Documents' },
+  'Speed_Letter':       { rx: /speed.?letter/i,          label: 'Speed Letter CSV',      cat: 'Documents' },
+  'Registered_Parcel':  { rx: /registered.?parcel/i,    label: 'Registered Parcel CSV', cat: 'Parcel' },
+  'Speed_Parcel':       { rx: /speed.?parcel/i,          label: 'Speed Parcel CSV',      cat: 'Parcel' },
+};
+
+// fileStore: key → { file, category }
+// category is null for Office_Names, a string for CSVs
+const fileStore = {};
+// pending queue for unrecognised files needing manual assignment
+const pendingFiles = [];
+
+const fileInput  = document.getElementById('fileInput');
+const dropZone   = document.getElementById('dropZone');
+const fileList   = document.getElementById('fileList');
+const genBtn     = document.getElementById('genBtn');
+const dlBtn      = document.getElementById('dlBtn');
+const progressWrap  = document.getElementById('progressWrap');
+const progressBar   = document.getElementById('progressBar');
+const progressLabel = document.getElementById('progressLabel');
+const logBox     = document.getElementById('logBox');
+const statsGrid  = document.getElementById('statsGrid');
+
+let outputBlob = null;
+
+// ── Modal for unrecognised files ───────────────────────────────────────────
+const modal = document.createElement('div');
+modal.id = 'assignModal';
+modal.style.cssText = `display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;
+  align-items:center;justify-content:center;padding:16px;`;
+modal.innerHTML = `
+<div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;font-family:'Segoe UI',system-ui,sans-serif;">
+  <div style="font-size:13px;color:#718096;margin-bottom:4px;">Unrecognised file</div>
+  <div id="modalFileName" style="font-size:15px;font-weight:600;color:#1A202C;margin-bottom:16px;word-break:break-all;"></div>
+  <div style="font-size:13px;color:#1A202C;margin-bottom:8px;">What does this file contain?</div>
+  <select id="modalCatSelect" style="width:100%;padding:9px 10px;border:1px solid #CBD5E0;border-radius:8px;font-size:13px;margin-bottom:16px;">
+    <option value="">— Select category —</option>
+    <option value="all_category|All Products">All Category (All Products)</option>
+    <option value="registered_letter|Documents">Registered Letter (Documents)</option>
+    <option value="Speed_Letter|Documents">Speed Letter (Documents)</option>
+    <option value="Registered_Parcel|Parcel">Registered Parcel (Parcel)</option>
+    <option value="Speed_Parcel|Parcel">Speed Parcel (Parcel)</option>
+    <option value="skip|">Skip this file</option>
+  </select>
+  <div style="display:flex;gap:10px;">
+    <button id="modalSkip" style="flex:1;padding:10px;border:1px solid #CBD5E0;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;">Skip</button>
+    <button id="modalConfirm" style="flex:2;padding:10px;background:#922B21;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Assign</button>
+  </div>
+</div>`;
+document.body.appendChild(modal);
+
+document.getElementById('modalSkip').addEventListener('click', () => { modal.style.display='none'; processNextPending(); });
+document.getElementById('modalConfirm').addEventListener('click', () => {
+  const val = document.getElementById('modalCatSelect').value;
+  if (!val) return;
+  const [key, cat] = val.split('|');
+  if (key !== 'skip') {
+    fileStore[key] = { file: pendingFiles[0], category: cat === 'null' ? null : cat };
+    updateDots();
+  }
+  pendingFiles.shift();
+  modal.style.display = 'none';
+  processNextPending();
+});
+
+function processNextPending() {
+  if (pendingFiles.length === 0) { renderFileList(); checkGenBtn(); return; }
+  const f = pendingFiles[0];
+  document.getElementById('modalFileName').textContent = f.name;
+  document.getElementById('modalCatSelect').value = '';
+  modal.style.display = 'flex';
+}
+
+function updateDots() {
+  Object.keys(AUTO_PATTERNS).forEach(k => {
+    const dot = document.getElementById('dot-' + k);
+    if (dot) dot.classList.toggle('loaded', !!fileStore[k]);
+  });
+}
+
+function checkGenBtn() {
+  const CSV_KEYS = ['all_category','registered_letter','Speed_Letter','Registered_Parcel','Speed_Parcel'];
+  const hasCSV = CSV_KEYS.some(k => !!fileStore[k]);
+  genBtn.disabled = !(officeStatus === 'ok' && hasCSV);
+}
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function matchKey(name) {
+  for (const [k, { rx }] of Object.entries(AUTO_PATTERNS)) {
+    if (rx.test(name)) return k;
+  }
+  return null;
+}
+
+function handleFiles(files) {
+  const unmatched = [];
+  Array.from(files).forEach(f => {
+    const key = matchKey(f.name);
+    if (key) {
+      fileStore[key] = { file: f, category: AUTO_PATTERNS[key].cat || null };
+    } else {
+      unmatched.push(f);
+    }
+  });
+  updateDots();
+  renderFileList();
+  checkGenBtn();
+  if (unmatched.length > 0) {
+    pendingFiles.push(...unmatched);
+    processNextPending();
+  }
+}
+
+function renderFileList() {
+  fileList.innerHTML = '';
+  Object.entries(fileStore).forEach(([k, { file, category }]) => {
+    const label = AUTO_PATTERNS[k] ? AUTO_PATTERNS[k].label : k;
+    const catBadge = category ? `<span style="font-size:10px;background:#EBF8FF;color:#2B6CB0;padding:2px 7px;border-radius:20px;font-weight:600;">${category}</span>` : '';
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.innerHTML = `<span class="fi-icon">${file.name.endsWith('.xlsx') ? '📊' : '📄'}</span>
+      <span class="fi-name">${file.name}</span>
+      ${catBadge}
+      <span class="fi-status ok">Ready</span>`;
+    fileList.appendChild(div);
+  });
+  // show missing files as "not loaded"
+  const CSV_KEYS = ['all_category','registered_letter','Speed_Letter','Registered_Parcel','Speed_Parcel'];
+  const missingCSVs = CSV_KEYS.filter(k => !fileStore[k]);
+  if (missingCSVs.length > 0 && missingCSVs.length < 5) {
+    missingCSVs.forEach(k => {
+      const div = document.createElement('div');
+      div.className = 'file-item';
+      div.style.opacity = '0.5';
+      div.innerHTML = `<span class="fi-icon">📄</span>
+        <span class="fi-name">${AUTO_PATTERNS[k].label}</span>
+        <span class="fi-status wait">Not loaded — will be skipped</span>`;
+      fileList.appendChild(div);
+    });
+  }
+}
+
+function log(msg, type='') {
+  logBox.style.display = 'block';
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  d.textContent = '» ' + msg;
+  logBox.appendChild(d);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function setProgress(pct, label) {
+  progressBar.style.width = pct + '%';
+  progressLabel.textContent = label;
+}
+
+async function readFileAsAB(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = e => res(e.target.result);
+    fr.onerror = rej;
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+function parseCSV(ab) {
+  const wb = XLSX.read(ab, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, { defval: 0 });
+}
+
+function parseXLSX(ab) {
+  const wb = XLSX.read(ab, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, { defval: '' });
+}
+
+function num(v) { const n = parseFloat(v) || 0; return isNaN(n) ? 0 : n; }
+function pct(num, den) { return den > 0 ? Math.round((num / den) * 10000) / 100 : 0; }
+
+function loadAndLabel(ab, category) {
+  const rows = parseCSV(ab);
+  rows.forEach(r => {
+    r.office_id = String(r.office_id || '').trim();
+    r['Product Category'] = category;
+  });
+  return rows;
+}
+
+const SUM_COLS = ['Received','D0 Delivered','D0 Redirected','D0 Returned','D1 Delivered','D1 Redirected','D1 Returned'];
+
+function aggregate(rows, groupKeys) {
+  const map = new Map();
+  rows.forEach(r => {
+    const key = groupKeys.map(k => r[k] || '').join('|');
+    if (!map.has(key)) {
+      const base = {};
+      groupKeys.forEach(k => base[k] = r[k] || '');
+      SUM_COLS.forEach(c => base[c] = 0);
+      map.set(key, base);
+    }
+    const agg = map.get(key);
+    SUM_COLS.forEach(c => agg[c] += num(r[c]));
+  });
+  const result = Array.from(map.values());
+  result.forEach(r => {
+    r['D0 Disposed'] = r['D0 Delivered'] + r['D0 Redirected'] + r['D0 Returned'];
+    r['D1 Disposed'] = r['D1 Delivered'] + r['D1 Redirected'] + r['D1 Returned'];
+    r['Total D+0+1 Disposed'] = r['D0 Disposed'] + r['D1 Disposed'];
+    r['D0 %'] = pct(r['D0 Disposed'], r['Received']);
+    r['D1 %'] = pct(r['D1 Disposed'], r['Received']);
+    r['Total %'] = pct(r['Total D+0+1 Disposed'], r['Received']);
+  });
+  return result;
+}
+
+// ── openpyxl-equivalent helpers using SheetJS raw workbook ──────────────────
+
+function rgb(hex) {
+  return 'FF' + hex.replace('#','').toUpperCase();
+}
+
+function cellRef(r, c) { return XLSX.utils.encode_cell({ r, c }); }
+
+function setCell(ws, r, c, v, style) {
+  const ref = cellRef(r, c);
+  ws[ref] = { v, t: typeof v === 'number' ? 'n' : 's', s: style || {} };
+  if (!ws['!ref']) ws['!ref'] = ref;
+}
+
+function setCellPct(ws, r, c, v, style) {
+  const ref = cellRef(r, c);
+  ws[ref] = { v: v / 100, t: 'n', s: style || {}, z: '0.00"%"' };
+}
+
+function mergeRange(ws, r1, c1, r2, c2) {
+  if (!ws['!merges']) ws['!merges'] = [];
+  ws['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+}
+
+function makeStyle(bgHex, fgHex, bold, sz, align, wrap) {
+  return {
+    fill: { fgColor: { rgb: rgb(bgHex) } },
+    font: { color: { rgb: rgb(fgHex || '#1C1C1C') }, bold: !!bold, sz: sz || 9, name: 'Calibri' },
+    alignment: { horizontal: align || 'center', vertical: 'center', wrapText: !!wrap },
+    border: {
+      top: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+      bottom: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+      left: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+      right: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+    }
+  };
+}
+
+function hdrStyle(bgHex) { return makeStyle(bgHex, '#FFFFFF', true, 9, 'center', true); }
+function titleStyle(bgHex) { return makeStyle(bgHex, '#FFFFFF', true, 12, 'center', false); }
+function legendStyle(bgHex, fgHex) { return makeStyle(bgHex || '#FAE5D3', fgHex || '#1C1C1C', false, 9, 'center', false); }
+function dataStyle(bgHex, align) { return makeStyle(bgHex, '#1C1C1C', false, 9, align || 'center', false); }
+function dataPctStyle(bgHex) { return { ...dataStyle(bgHex), numFmt: '0.00"%"' }; }
+
+function writeRow(ws, rowIdx, vals, styles) {
+  vals.forEach((v, c) => {
+    const ref = cellRef(rowIdx, c);
+    const s = styles ? (Array.isArray(styles) ? styles[c] : styles) : {};
+    const isPct = s && s._pct;
+    if (isPct) {
+      delete s._pct;
+      ws[ref] = { v: typeof v === 'number' ? v / 100 : v, t: typeof v === 'number' ? 'n' : 's', s, z: '0.00"%"' };
+    } else {
+      ws[ref] = { v, t: typeof v === 'number' ? 'n' : 's', s };
+    }
+  });
+  updateRef(ws, rowIdx, vals.length - 1);
+}
+
+function updateRef(ws, r, maxC) {
+  const cur = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
+  if (r > cur.e.r) cur.e.r = r;
+  if (maxC > cur.e.c) cur.e.c = maxC;
+  ws['!ref'] = XLSX.utils.encode_range(cur);
+}
+
+function writeTitleBlock(ws, title, legend, nCols, titleBg, legendBg) {
+  // Row 0: title
+  for (let c = 0; c < nCols; c++) setCell(ws, 0, c, c === 0 ? title : '', titleStyle(titleBg));
+  mergeRange(ws, 0, 0, 0, nCols - 1);
+  // Row 1: legend
+  for (let c = 0; c < nCols; c++) setCell(ws, 1, c, c === 0 ? legend : '', legendStyle(legendBg || '#FAE5D3'));
+  mergeRange(ws, 1, 0, 1, nCols - 1);
+  updateRef(ws, 1, nCols - 1);
+}
+
+function writeHeaders(ws, rowIdx, headers, styles) {
+  headers.forEach((h, c) => {
+    const s = styles ? (Array.isArray(styles) ? styles[c] : styles) : {};
+    setCell(ws, rowIdx, c, h, s);
+  });
+  updateRef(ws, rowIdx, headers.length - 1);
+}
+
+function rowBg(i) { return i % 2 === 0 ? '#FDF6EC' : '#FAE5D3'; }
+function rowBgAlt(i, even, odd) { return i % 2 === 0 ? even : odd; }
+
+function setColWidths(ws, widths) {
+  ws['!cols'] = widths.map(w => ({ wch: w }));
+}
+
+function setRowHeights(ws, map) {
+  if (!ws['!rows']) ws['!rows'] = [];
+  Object.entries(map).forEach(([r, h]) => {
+    while (ws['!rows'].length <= +r) ws['!rows'].push({});
+    ws['!rows'][+r] = { hpt: h };
+  });
+}
+
+// ── SHEET BUILDERS ─────────────────────────────────────────────────────────
+
+function sortBy(arr, keys) {
+  return [...arr].sort((a, b) => {
+    for (const k of keys) {
+      const av = String(a[k] || ''), bv = String(b[k] || '');
+      if (av < bv) return -1; if (av > bv) return 1;
+    }
+    return 0;
+  });
+}
+
+function buildSheet1(master) {
+  const ws = {};
+  const sorted = sortBy(master, ['Division Office Name','Sub Division','Sub Office','Branch Office','Product Category']);
+  const TITLE_BG = '#922B21', HDR_BG = '#C0392B', LEG_BG = '#FAE5D3';
+  const nCols = 14;
+  const LEGEND = '🟢 ≥90% (On Track)   🟡 75–89% (Needs Attention)   🔴 <75% (Critical)';
+
+  writeTitleBlock(ws, 'India Post — Delivery Transit Analysis  |  Office Wise Performance', LEGEND, nCols, TITLE_BG, LEG_BG);
+
+  const HDRS = ['Division Office Name','Sub Division','Sub Office','Branch Office','office_id','Office Type','Product Category','Received','D0 Disposed','D0 %','D1 Disposed','D1 %','Total D+0+1 Disposed','Total %'];
+  writeHeaders(ws, 2, HDRS, hdrStyle(HDR_BG));
+
+  const LEFT_COLS = new Set([0,1,2,3,6]);
+  sorted.forEach((r, i) => {
+    const bg = rowBg(i);
+    const row = [
+      r['Division Office Name']||'', r['Sub Division']||'', r['Sub Office']||'', r['Branch Office']||'',
+      r['office_id']||'', r['Office Type']||'', r['Product Category']||'',
+      r['Received'], r['D0 Disposed'], r['D0 %'],
+      r['D1 Disposed'], r['D1 %'], r['Total D+0+1 Disposed'], r['Total %']
+    ];
+    const styles = row.map((v, c) => {
+      const align = LEFT_COLS.has(c) ? 'left' : 'center';
+      const s = dataStyle(bg, align);
+      if (c === 9 || c === 11 || c === 13) { s._pct = true; }
+      return s;
+    });
+    writeRow(ws, 3 + i, row, styles);
+  });
+
+  setColWidths(ws, [22,22,22,22,12,10,14,10,11,9,11,9,14,9]);
+  setRowHeights(ws, {0:28,1:18,2:32});
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+  return ws;
+}
+
+function buildSheet2(master) {
+  const ws = {};
+  const filtered = master.filter(r => r['Office Type'] === 'SPO' || r['Office Type'] === 'HPO');
+  const agg = aggregate(filtered, ['Sub Division','Sub Office','Product Category']);
+  const sorted = sortBy(agg, ['Sub Division','Sub Office','Product Category']);
+  const nCols = 7;
+  writeTitleBlock(ws, 'India Post — Delivery Transit Analysis  |  Sub Office Performance (SPO / HPO)',
+    '🟢 ≥90% (On Track)   🟡 75–89% (Needs Attention)   🔴 <75% (Critical)', nCols, '#922B21', '#FAE5D3');
+  writeHeaders(ws, 2, ['Sub Division','Sub Office','Product Category','Received','D0 %','D1 %','Total %'], hdrStyle('#C0392B'));
+  sorted.forEach((r, i) => {
+    const bg = rowBg(i);
+    const styles = [dataStyle(bg,'left'),dataStyle(bg,'left'),dataStyle(bg,'left'),dataStyle(bg,'center'),
+      {...dataStyle(bg,'center'),_pct:true},{...dataStyle(bg,'center'),_pct:true},{...dataStyle(bg,'center'),_pct:true}];
+    writeRow(ws, 3+i, [r['Sub Division'],r['Sub Office'],r['Product Category'],r['Received'],r['D0 %'],r['D1 %'],r['Total %']], styles);
+  });
+  setColWidths(ws, [25,25,14,10,9,9,9]);
+  setRowHeights(ws, {0:28,1:18,2:32});
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+  return { ws, count: sorted.length };
+}
+
+function buildSheet3(master) {
+  const ws = {};
+  const filtered = master.filter(r => r['Office Type'] === 'BPO');
+  const agg = aggregate(filtered, ['Sub Division','Sub Office','Branch Office','Product Category']);
+  const sorted = sortBy(agg, ['Sub Division','Sub Office','Branch Office','Product Category']);
+  const nCols = 8;
+  writeTitleBlock(ws, 'India Post — Delivery Transit Analysis  |  Branch Office Performance (BPO)',
+    '🟢 ≥90% (On Track)   🟡 75–89% (Needs Attention)   🔴 <75% (Critical)', nCols, '#922B21', '#FAE5D3');
+  writeHeaders(ws, 2, ['Sub Division','Sub Office','Branch Office','Product Category','Received','D0 %','D1 %','Total %'], hdrStyle('#C0392B'));
+  sorted.forEach((r, i) => {
+    const bg = rowBg(i);
+    const styles = [dataStyle(bg,'left'),dataStyle(bg,'left'),dataStyle(bg,'left'),dataStyle(bg,'left'),
+      dataStyle(bg,'center'),{...dataStyle(bg,'center'),_pct:true},{...dataStyle(bg,'center'),_pct:true},{...dataStyle(bg,'center'),_pct:true}];
+    writeRow(ws, 3+i, [r['Sub Division'],r['Sub Office'],r['Branch Office'],r['Product Category'],r['Received'],r['D0 %'],r['D1 %'],r['Total %']], styles);
+  });
+  setColWidths(ws, [25,25,25,14,10,9,9,9]);
+  setRowHeights(ws, {0:28,1:18,2:32});
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+  return { ws, count: sorted.length };
+}
+
+function buildSheet4(master) {
+  const ws = {};
+  const catOrder = ['Documents','Parcel','All Products'];
+  const rows = catOrder.map(cat => {
+    const sub = master.filter(r => r['Product Category'] === cat);
+    const agg = {
+      'Product Category': cat,
+      Received: sub.reduce((s,r) => s+r.Received,0),
+      'D0 Disposed': sub.reduce((s,r) => s+r['D0 Disposed'],0),
+      'D1 Disposed': sub.reduce((s,r) => s+r['D1 Disposed'],0),
+      'Total D+0+1 Disposed': sub.reduce((s,r) => s+r['Total D+0+1 Disposed'],0),
+    };
+    agg['D0 %'] = pct(agg['D0 Disposed'], agg['Received']);
+    agg['D1 %'] = pct(agg['D1 Disposed'], agg['Received']);
+    agg['Total %'] = pct(agg['Total D+0+1 Disposed'], agg['Received']);
+    const uniqIds = new Set(sub.filter(r => r['Total %'] < 90).map(r => r['office_id']));
+    agg['Offices < 90%'] = uniqIds.size;
+    return agg;
+  });
+  const nCols = 9;
+  writeTitleBlock(ws, 'India Post — Delivery Transit Analysis  |  Division Executive Dashboard',
+    'Summary view for Divisional Head — aggregated across all offices', nCols, '#922B21', '#FAE5D3');
+  writeHeaders(ws, 2, ['Product Category','Received','D0 Disposed','D0 %','D1 Disposed','D1 %','Total D+0+1 Disposed','Total %','Offices < 90%'], hdrStyle('#C0392B'));
+  rows.forEach((r, i) => {
+    const bg = rowBg(i);
+    const ds = (p) => ({...dataStyle(bg,'center'), _pct: p});
+    writeRow(ws, 3+i, [r['Product Category'],r['Received'],r['D0 Disposed'],r['D0 %'],r['D1 Disposed'],r['D1 %'],r['Total D+0+1 Disposed'],r['Total %'],r['Offices < 90%']],
+      [dataStyle(bg,'center'),dataStyle(bg,'center'),dataStyle(bg,'center'),ds(true),dataStyle(bg,'center'),ds(true),dataStyle(bg,'center'),ds(true),dataStyle(bg,'center')]);
+  });
+  setColWidths(ws, [16,12,13,9,13,9,18,9,14]);
+  setRowHeights(ws, {0:28,1:18,2:32});
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+  return ws;
+}
+
+function buildSheet5(master) {
+  const ws = {};
+  const filtered = sortBy(master.filter(r => r['Total %'] < 90), ['Total %']);
+  const N = filtered.length;
+  const nCols = 10;
+  writeTitleBlock(ws, '⚠  India Post — ALERT: Offices Below 90% Total Delivery Performance',
+    `Total ${N} office-product combinations flagged for corrective action  |  Sorted: Worst first`, nCols, '#C0392B', '#FAE5D3');
+  writeHeaders(ws, 2, ['Division Office Name','Sub Division','Sub Office','Branch Office','Office Type','Product Category','Received','D0 %','D1 %','Total %'], hdrStyle('#C0392B'));
+  const LEFT = new Set([0,1,2,3,5]);
+  filtered.forEach((r, i) => {
+    const bg = rowBg(i);
+    const styles = [0,1,2,3,4,5,6,7,8,9].map(c => {
+      const s = dataStyle(bg, LEFT.has(c) ? 'left' : 'center');
+      if (c===7||c===8||c===9) s._pct = true;
+      return s;
+    });
+    writeRow(ws, 3+i, [r['Division Office Name']||'',r['Sub Division']||'',r['Sub Office']||'',r['Branch Office']||'',r['Office Type']||'',r['Product Category']||'',r['Received'],r['D0 %'],r['D1 %'],r['Total %']], styles);
+  });
+  setColWidths(ws, [22,22,22,22,11,14,10,9,9,9]);
+  setRowHeights(ws, {0:28,1:18,2:32});
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+  return { ws, count: N };
+}
+
+function buildSDSheet(master, bpoOnly, title, legend, hdrBg, titleBg, evenBg, oddBg, soLabel) {
+  const ws = {};
+  const filtered = bpoOnly
+    ? master.filter(r => r['Office Type'] === 'BPO')
+    : master.filter(r => r['Office Type'] === 'SPO' || r['Office Type'] === 'HPO');
+
+  const catOrder = ['Documents','Parcel','All Products'];
+  const sdCats = new Map();
+  filtered.forEach(r => {
+    const k = r['Sub Division'] + '|' + r['Product Category'];
+    if (!sdCats.has(k)) sdCats.set(k, { 'Sub Division': r['Sub Division'], 'Product Category': r['Product Category'], rows: [] });
+    sdCats.get(k).rows.push(r);
+  });
+
+  const result = [];
+  const sds = [...new Set(filtered.map(r => r['Sub Division']))].sort();
+  sds.forEach(sd => {
+    catOrder.forEach(cat => {
+      const k = sd + '|' + cat;
+      if (!sdCats.has(k)) return;
+      const sub = sdCats.get(k).rows;
+      const agg = {
+        'Sub Division': sd, 'Product Category': cat,
+        Received: sub.reduce((s,r) => s+r.Received,0),
+        'D0 Disposed': sub.reduce((s,r) => s+r['D0 Disposed'],0),
+        'D1 Disposed': sub.reduce((s,r) => s+r['D1 Disposed'],0),
+        'Total D+0+1 Disposed': sub.reduce((s,r) => s+r['Total D+0+1 Disposed'],0),
+      };
+      agg['D0 %'] = pct(agg['D0 Disposed'], agg['Received']);
+      agg['D1 %'] = pct(agg['D1 Disposed'], agg['Received']);
+      agg['Total %'] = pct(agg['Total D+0+1 Disposed'], agg['Received']);
+      const uniq = new Set(sub.map(r => r['office_id']));
+      const under = new Set(sub.filter(r => r['Total %'] < 90).map(r => r['office_id']));
+      agg['Total SOs'] = uniq.size;
+      agg['Under 90%'] = under.size;
+      result.push(agg);
+    });
+  });
+
+  const countLabel = bpoOnly ? 'Total BOs' : 'Total SOs';
+  const underLabel = bpoOnly ? 'BOs < 90%' : 'SOs < 90%';
+  const nCols = 11;
+  writeTitleBlock(ws, title, legend, nCols, titleBg, '#FAE5D3');
+  writeHeaders(ws, 2, ['Sub Division','Product Category',countLabel,underLabel,'Received','D0 Disposed','D0 %','D1 Disposed','D1 %','Total D+0+1 Disposed','Total %'], hdrStyle(hdrBg));
+  result.forEach((r, i) => {
+    const bg = i%2===0 ? evenBg : oddBg;
+    const styles = [dataStyle(bg,'left'),dataStyle(bg,'left'),dataStyle(bg,'center'),dataStyle(bg,'center'),dataStyle(bg,'center'),
+      dataStyle(bg,'center'),{...dataStyle(bg,'center'),_pct:true},dataStyle(bg,'center'),{...dataStyle(bg,'center'),_pct:true},
+      dataStyle(bg,'center'),{...dataStyle(bg,'center'),_pct:true}];
+    writeRow(ws, 3+i, [r['Sub Division'],r['Product Category'],r['Total SOs'],r['Under 90%'],r['Received'],r['D0 Disposed'],r['D0 %'],r['D1 Disposed'],r['D1 %'],r['Total D+0+1 Disposed'],r['Total %']], styles);
+  });
+  setColWidths(ws, [25,14,10,10,10,12,9,12,9,16,9]);
+  setRowHeights(ws, {0:28,1:18,2:32});
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+  return { ws, count: result.length };
+}
+
+function buildPivotSheet(master, bpoOnly, title, legend, hdrBg, titleBg, evenBg, oddBg) {
+  const ws = {};
+  const catOrder = ['Documents','Parcel','All Products'];
+  const catColors = { 'Documents': '#1F618D', 'Parcel': '#117A65', 'All Products': '#6C3483' };
+
+  const filtered = bpoOnly
+    ? master.filter(r => r['Office Type'] === 'BPO')
+    : master.filter(r => r['Office Type'] === 'SPO' || r['Office Type'] === 'HPO');
+
+  // Group by row key
+  const rowKeys = bpoOnly
+    ? [...new Map(filtered.map(r => [r['Sub Division']+'|'+r['Sub Office']+'|'+r['Branch Office'], { sd: r['Sub Division'], so: r['Sub Office'], bo: r['Branch Office'] }])).values()]
+    : [...new Map(filtered.map(r => [r['Sub Division']+'|'+r['Sub Office'], { sd: r['Sub Division'], so: r['Sub Office'] }])).values()];
+
+  const sortedKeys = rowKeys.sort((a,b) => {
+    const sa = a.sd+a.so+(a.bo||''), sb = b.sd+b.so+(b.bo||'');
+    return sa < sb ? -1 : sa > sb ? 1 : 0;
+  });
+
+  // Build lookup: key → cat → metrics
+  const lookup = new Map();
+  filtered.forEach(r => {
+    const k = bpoOnly
+      ? r['Sub Division']+'|'+r['Sub Office']+'|'+r['Branch Office']
+      : r['Sub Division']+'|'+r['Sub Office'];
+    if (!lookup.has(k)) lookup.set(k, {});
+    const catAgg = lookup.get(k);
+    if (!catAgg[r['Product Category']]) catAgg[r['Product Category']] = { Received:0,'D0 Disposed':0,'D1 Disposed':0,'Total D+0+1 Disposed':0 };
+    const a = catAgg[r['Product Category']];
+    a.Received += r.Received; a['D0 Disposed'] += r['D0 Disposed'];
+    a['D1 Disposed'] += r['D1 Disposed']; a['Total D+0+1 Disposed'] += r['Total D+0+1 Disposed'];
+  });
+  // Calc pcts
+  lookup.forEach(catAgg => {
+    Object.values(catAgg).forEach(a => {
+      a['D0 %'] = pct(a['D0 Disposed'], a.Received);
+      a['D1 %'] = pct(a['D1 Disposed'], a.Received);
+      a['Total %'] = pct(a['Total D+0+1 Disposed'], a.Received);
+    });
+  });
+
+  // Double header rows 0,1,2,3 → title,legend,groupHeader,subHeader
+  const keyCols = bpoOnly ? 3 : 2; // SD, SO, [BO]
+  const nCols = keyCols + 1 + 9; // + Received + 9 metrics
+
+  writeTitleBlock(ws, title, legend, nCols, titleBg, '#FAE5D3');
+
+  // Row 2: group headers
+  const keyHdrStyle = hdrStyle(hdrBg);
+  const rcvStyle = hdrStyle('#555555');
+  // Key cols span rows 2-3
+  if (bpoOnly) {
+    for (let c = 0; c < 3; c++) {
+      const labels = ['Sub Division','Sub Office','Branch Office'];
+      setCell(ws, 2, c, labels[c], keyHdrStyle);
+      setCell(ws, 3, c, '', keyHdrStyle);
+      mergeRange(ws, 2, c, 3, c);
+    }
+  } else {
+    ['Sub Division','Sub Office'].forEach((h,c) => {
+      setCell(ws, 2, c, h, keyHdrStyle);
+      setCell(ws, 3, c, '', keyHdrStyle);
+      mergeRange(ws, 2, c, 3, c);
+    });
+  }
+  // Received spans rows 2-3
+  setCell(ws, 2, keyCols, 'Received', rcvStyle);
+  setCell(ws, 3, keyCols, '', rcvStyle);
+  mergeRange(ws, 2, keyCols, 3, keyCols);
+
+  // Category group headers spanning 3 cols each
+  catOrder.forEach((cat, ci) => {
+    const startC = keyCols + 1 + ci * 3;
+    const s = hdrStyle(catColors[cat]);
+    setCell(ws, 2, startC, cat, s);
+    for (let c = startC+1; c < startC+3; c++) setCell(ws, 2, c, '', s);
+    mergeRange(ws, 2, startC, 2, startC+2);
+    // sub-headers row 3
+    ['D0 %','D1 %','Total %'].forEach((m,mi) => setCell(ws, 3, startC+mi, m, s));
+  });
+  updateRef(ws, 3, nCols-1);
+
+  // Data rows starting at row 4
+  sortedKeys.forEach((rk, i) => {
+    const lk = bpoOnly ? rk.sd+'|'+rk.so+'|'+rk.bo : rk.sd+'|'+rk.so;
+    const catAgg = lookup.get(lk) || {};
+    const bg = i%2===0 ? evenBg : oddBg;
+    const rcvData = catAgg['All Products'] ? catAgg['All Products'].Received : (catOrder.reduce((s,c) => s+(catAgg[c]?catAgg[c].Received:0),0));
+
+    const keyVals = bpoOnly ? [rk.sd,rk.so,rk.bo] : [rk.sd,rk.so];
+    keyVals.forEach((v,c) => setCell(ws, 4+i, c, v, dataStyle(bg,'left')));
+    setCell(ws, 4+i, keyCols, rcvData, dataStyle(bg,'center'));
+
+    catOrder.forEach((cat, ci) => {
+      const a = catAgg[cat];
+      const startC = keyCols + 1 + ci * 3;
+      if (!a) {
+        ['D0 %','D1 %','Total %'].forEach((_,mi) => setCell(ws, 4+i, startC+mi, '-', dataStyle(bg,'center')));
+      } else {
+        [a['D0 %'],a['D1 %'],a['Total %']].forEach((v,mi) => {
+          const ref = cellRef(4+i, startC+mi);
+          ws[ref] = { v: v/100, t:'n', s: dataStyle(bg,'center'), z:'0.00"%"' };
+        });
+      }
+    });
+    updateRef(ws, 4+i, nCols-1);
+  });
+
+  const widths = bpoOnly
+    ? [22,22,22,10,9,9,9,9,9,9,9,9,9]
+    : [22,22,10,9,9,9,9,9,9,9,9,9];
+  setColWidths(ws, widths);
+  setRowHeights(ws, {0:28,1:18,2:28,3:28});
+  ws['!freeze'] = { xSplit: 0, ySplit: 4 };
+  return { ws, count: sortedKeys.length };
+}
+
+// ── MAIN GENERATE ──────────────────────────────────────────────────────────
+
+genBtn.addEventListener('click', async () => {
+  genBtn.disabled = true;
+  dlBtn.classList.remove('show');
+  outputBlob = null;
+  statsGrid.style.display = 'none';
+  progressWrap.style.display = 'block';
+  logBox.innerHTML = '';
+  logBox.style.display = 'block';
+  setProgress(2, 'Reading files…');
+
+  try {
+    log(`Office master ready: ${offLookup.size} offices loaded from GitHub`, 'ok');
+
+    setProgress(15, 'Reading CSVs…');
+    const CSV_KEYS = ['all_category','registered_letter','Speed_Letter','Registered_Parcel','Speed_Parcel'];
+
+    let allRows = [];
+    let loadedCount = 0;
+    for (const key of CSV_KEYS) {
+      if (!fileStore[key]) {
+        log(`Skipping ${AUTO_PATTERNS[key].label} — not loaded`, 'warn');
+        continue;
+      }
+      const { file, category } = fileStore[key];
+      log(`Reading ${file.name} → ${category}…`);
+      const ab = await readFileAsAB(file);
+      const rows = loadAndLabel(ab, category);
+      allRows = allRows.concat(rows);
+      log(`  → ${rows.length} rows`, 'ok');
+      loadedCount++;
+    }
+    if (loadedCount === 0) throw new Error('No CSV files loaded. Please add at least one CSV.');
+    log(`Total raw rows: ${allRows.length}`, 'ok');
+
+    setProgress(30, 'Aggregating data…');
+    log('Aggregating by office_id × Product Category…');
+    const agg = aggregate(allRows, ['office_id','Product Category']);
+    log(`Aggregated: ${agg.length} records`, 'ok');
+
+    // Merge with office lookup
+    log('Merging with office master…');
+    const master = agg.map(r => {
+      const off = offLookup.get(r['office_id']) || { 'Division Office Name':'','Sub Division':'','Sub Office':'','Branch Office':'','Office Type':'' };
+      return { ...r, ...off };
+    });
+    log(`Master dataset: ${master.length} rows`, 'ok');
+
+    setProgress(40, 'Building workbook…');
+    const wb = XLSX.utils.book_new();
+
+    log('Sheet 1: Office Wise Data…');
+    setProgress(45, 'Sheet 1/9…');
+    const ws1 = buildSheet1(master);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Office Wise Data');
+
+    log('Sheet 2: Sub Division Only SO…');
+    setProgress(52, 'Sheet 2/9…');
+    const { ws: ws2 } = buildSheet2(master);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Sub Division Only SO');
+
+    log('Sheet 3: Only BOs…');
+    setProgress(58, 'Sheet 3/9…');
+    const { ws: ws3 } = buildSheet3(master);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Only BOs');
+
+    log('Sheet 4: Division Dashboard…');
+    setProgress(63, 'Sheet 4/9…');
+    const ws4 = buildSheet4(master);
+    XLSX.utils.book_append_sheet(wb, ws4, 'Division Dashboard');
+
+    log('Sheet 5: Under 90% Alert…');
+    setProgress(68, 'Sheet 5/9…');
+    const { ws: ws5, count: alertCount } = buildSheet5(master);
+    XLSX.utils.book_append_sheet(wb, ws5, '⚠ Under 90% Alert');
+
+    log('Sheet 6: SD Dashboard (B.Os)…');
+    setProgress(73, 'Sheet 6/9…');
+    const { ws: ws6 } = buildSDSheet(master, true,
+      'India Post — Sub Divisional Dashboard — Branch Offices (BPO) Only',
+      'Aggregated by Sub Division × Product Category  |  🟢 ≥90%   🟡 75–89%   🔴 <75%',
+      '#117A65','#0E6655','#D1F2EB','#FDF6EC');
+    XLSX.utils.book_append_sheet(wb, ws6, 'SD Dashboard (B.Os)');
+
+    log('Sheet 7: SD Dashboard (Excl. B.Os)…');
+    setProgress(78, 'Sheet 7/9…');
+    const { ws: ws7 } = buildSDSheet(master, false,
+      'India Post — Sub Divisional Dashboard — Sub Offices (SPO / HPO) Only',
+      'Aggregated by Sub Division × Product Category  |  🟢 ≥90%   🟡 75–89%   🔴 <75%',
+      '#1A5276','#154360','#D6EAF8','#FDF6EC');
+    XLSX.utils.book_append_sheet(wb, ws7, 'SD Dashboard (Excl. B.Os)');
+
+    log('Sheet 8: Pivot — Only B.Os…');
+    setProgress(84, 'Sheet 8/9…');
+    const { ws: ws8, count: boCount } = buildPivotSheet(master, true,
+      'India Post — Snapshot — Branch Office Performance Across All Product Categories',
+      'One row per Branch Office  |  D0 % + D1 % + Total % shown per category  |  🟢 ≥90%   🟡 75–89%   🔴 <75%',
+      '#512E5F','#6C3483','#E8DAEF','#FDF6EC');
+    XLSX.utils.book_append_sheet(wb, ws8, 'Pivot — Only B.Os');
+
+    log('Sheet 9: Pivot — Excl. B.Os…');
+    setProgress(91, 'Sheet 9/9…');
+    const { ws: ws9, count: soCount } = buildPivotSheet(master, false,
+      'India Post — Snapshot — Sub Office Performance Across All Product Categories',
+      'One row per Sub Office (SPO/HPO)  |  D0 % + D1 % + Total % shown per category  |  🟢 ≥90%   🟡 75–89%   🔴 <75%',
+      '#154360','#6C3483','#D6EAF8','#FDF6EC');
+    XLSX.utils.book_append_sheet(wb, ws9, 'Pivot — Excl. B.Os');
+
+    log('Writing workbook…');
+    setProgress(96, 'Finalising…');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+    outputBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    setProgress(100, 'Done!');
+    log(`Report generated successfully! 9 sheets, ${master.length} master rows.`, 'ok');
+
+    const uniqOffices = new Set(master.map(r => r['office_id'])).size;
+    document.getElementById('statOffices').textContent = uniqOffices;
+    document.getElementById('statAlert').textContent = alertCount;
+    document.getElementById('statRows').textContent = master.length;
+    statsGrid.style.display = 'grid';
+    dlBtn.classList.add('show');
+  } catch(e) {
+    log('ERROR: ' + e.message, 'err');
+    setProgress(0, 'Error — check log');
+    console.error(e);
+  }
+  genBtn.disabled = false;
+});
+
+// ── Fetch Office Master from GitHub on page load ───────────────────────────
+async function fetchOfficeMaster() {
+  const bar   = document.getElementById('officeStatusBar');
+  const icon  = document.getElementById('officeStatusIcon');
+  const title = document.getElementById('officeStatusTitle');
+  const sub   = document.getElementById('officeStatusSub');
+
+  try {
+    const resp = await fetch(OFFICE_MASTER_URL);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf  = await resp.arrayBuffer();
+    const wb   = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    rows.forEach(r => {
+      const id = String(r['Office ID'] || '').trim();
+      if (id) offLookup.set(id, {
+        'Division Office Name': r['Division Office Name'] || '',
+        'Sub Division':         r['Sub Division']         || '',
+        'Sub Office':           r['Sub Office']           || '',
+        'Branch Office':        r['Branch Office']        || '',
+        'Office Type':          r['office-type-code']     || '',
+      });
+    });
+
+    officeStatus = 'ok';
+    bar.style.background   = '#F0FFF4';
+    bar.style.borderColor  = '#9AE6B4';
+    icon.textContent       = '✅';
+    title.style.color      = '#276749';
+    title.textContent      = `Office Master loaded — ${offLookup.size} offices`;
+    sub.textContent        = 'Fetched from GitHub · Karad Division';
+    checkGenBtn();
+  } catch(e) {
+    officeStatus = 'error';
+    bar.style.background   = '#FFF5F5';
+    bar.style.borderColor  = '#FEB2B2';
+    icon.textContent       = '❌';
+    title.style.color      = '#9B2C2C';
+    title.textContent      = 'Could not load Office Master from GitHub';
+    sub.textContent        = e.message + ' — check internet or the GitHub raw URL in OFFICE_MASTER_URL';
+  }
+}
+
+fetchOfficeMaster();
+
+dlBtn.addEventListener('click', () => {
+  if (!outputBlob) return;
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2,'0');
+  const mm = String(today.getMonth()+1).padStart(2,'0');
+  const yyyy = today.getFullYear();
+  const fn = `DTAA_Karad_${dd}${mm}${yyyy}.xlsx`;
+  const url = URL.createObjectURL(outputBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fn;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+});
+
+</script>
+</body>
+</html>
